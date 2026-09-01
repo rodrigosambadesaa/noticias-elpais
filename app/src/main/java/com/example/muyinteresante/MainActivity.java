@@ -33,9 +33,8 @@ public class MainActivity extends AppCompatActivity implements iNoticiaRSS {
 
     private static final String TAG = "MainActivity";
     private static final String RSS_URL = "https://feeds.elpais.com/mrss-s/pages/ep/site/elpais.com/portada";
-    private static final String RSS_PAGE_URL = "https://feeds.elpais.com/mrss-s/pages/ep/site/elpais.com/portada";
     private static final int LOAD_MORE_THRESHOLD = 4;
-    private static final int MAX_CONSECUTIVE_DUPLICATE_PAGES = 2;
+    private static final int NEWS_PAGE_SIZE = 20;
 
     private SwipeRefreshLayout swipeRefreshLayout;
     private RecyclerView rvNoticias;
@@ -57,8 +56,7 @@ public class MainActivity extends AppCompatActivity implements iNoticiaRSS {
 
     private boolean isLoadingMore = false;
     private boolean hasMoreNews = false;
-    private int nextArchivePage = 2;
-    private int consecutiveDuplicatePages = 0;
+    private final ArrayList<NoticiaRSS> noticiasPendientes = new ArrayList<>();
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -121,8 +119,9 @@ public class MainActivity extends AppCompatActivity implements iNoticiaRSS {
         });
         rvNoticias.setAdapter(adapter);
 
-        // Infinite scroll: cuando el usuario se aproxima al final se solicita la
-        // siguiente página del feed oficial, que contiene noticias más antiguas.
+        // Infinite scroll: el RSS oficial entrega un lote amplio y estable. Lo
+        // mostramos por páginas locales para que la interfaz no cargue 150 tarjetas
+        // de golpe y para que el gesto de scroll siga siendo progresivo.
         rvNoticias.addOnScrollListener(new RecyclerView.OnScrollListener() {
             @Override
             public void onScrolled(RecyclerView recyclerView, int dx, int dy) {
@@ -256,7 +255,7 @@ public class MainActivity extends AppCompatActivity implements iNoticiaRSS {
         // Cargar desde caché offline primero para renderizado instantáneo
         ArrayList<NoticiaRSS> cached = NewsCacheManager.loadNewsFromCache(this);
         if (cached != null && !cached.isEmpty()) {
-            adapter.updateData(cached);
+            mostrarPrimeraPagina(cached);
             layoutEmptyState.setVisibility(View.GONE);
             rvNoticias.setVisibility(View.VISIBLE);
         }
@@ -292,80 +291,33 @@ public class MainActivity extends AppCompatActivity implements iNoticiaRSS {
         });
     }
 
-    /**
-     * Solicita una página adicional del feed oficial sin bloquear la interfaz con
-     * un diálogo modal. Las páginas se acumulan en el adapter y se deduplican.
-     */
+    /** Añade el siguiente lote local sin bloquear la interfaz ni abrir diálogos. */
     private void cargarMasNoticias() {
-        if (isLoadingMore || !hasMoreNews || adapter == null) {
-            return;
-        }
-
-        if (!ConnectivityAndInternetAccess.isConnectedOrConnecting(this)) {
-            Log.d(TAG, "No se cargan más noticias: sin conexión disponible.");
+        if (isLoadingMore || noticiasPendientes.isEmpty() || adapter == null) {
             return;
         }
 
         isLoadingMore = true;
-        final int pageToLoad = nextArchivePage;
-        Log.d(TAG, "Solicitando noticias antiguas. Página RSS: " + pageToLoad);
+        int end = Math.min(NEWS_PAGE_SIZE, noticiasPendientes.size());
+        ArrayList<NoticiaRSS> siguientePagina = new ArrayList<>(noticiasPendientes.subList(0, end));
+        noticiasPendientes.subList(0, end).clear();
+        int added = adapter.appendData(siguientePagina);
+        hasMoreNews = !noticiasPendientes.isEmpty();
+        isLoadingMore = false;
+        if (added > 0) {
+            NewsCacheManager.saveNewsToCache(this, adapter.getAllData());
+            Log.d(TAG, "Scroll infinito: añadidas " + added + " noticias; pendientes=" + noticiasPendientes.size());
+        }
+    }
 
-        ConnectivityAndInternetAccess.checkInternetAsyncDefault(this, new ConnectivityAndInternetAccess.InternetCallback() {
-            @Override
-            public void onResult(ConnectivityAndInternetAccess.InternetResult result) {
-                if (result == null || !result.isReachable()) {
-                    isLoadingMore = false;
-                    Log.w(TAG, "No se pudo verificar internet para cargar la página " + pageToLoad);
-                    return;
-                }
-
-                new DescargaNoticiasRSS(MainActivity.this, new iNoticiaRSS() {
-                    @Override
-                    public void onRecibeNoticiasRSS(ArrayList<NoticiaRSS> listaNoticias) {
-                        isLoadingMore = false;
-
-                        if (listaNoticias == null) {
-                            // Error transitorio: no avanzamos de página para poder reintentarlo.
-                            Log.w(TAG, "Error descargando la página RSS " + pageToLoad + ". Se reintentará al volver al final.");
-                            return;
-                        }
-
-                        if (listaNoticias.isEmpty()) {
-                            hasMoreNews = false;
-                            Log.d(TAG, "Fin del archivo RSS alcanzado en la página " + pageToLoad);
-                            Toast.makeText(MainActivity.this, "No hay más noticias antiguas disponibles", Toast.LENGTH_SHORT).show();
-                            return;
-                        }
-
-                        int added = adapter.appendData(listaNoticias);
-                        nextArchivePage = pageToLoad + 1;
-
-                        if (added > 0) {
-                            consecutiveDuplicatePages = 0;
-                            NewsCacheManager.saveNewsToCache(MainActivity.this, adapter.getAllData());
-                            Log.d(TAG, "Página " + pageToLoad + " cargada: " + added + " noticias nuevas (" + listaNoticias.size() + " recibidas).");
-                        } else {
-                            consecutiveDuplicatePages++;
-                            Log.d(TAG, "Página " + pageToLoad + " sin noticias nuevas tras deduplicar.");
-
-                            // Algunos feeds pueden repetir una página al cambiar su contenido.
-                            // Saltamos como máximo un pequeño número de páginas para evitar un bucle infinito.
-                            if (consecutiveDuplicatePages >= MAX_CONSECUTIVE_DUPLICATE_PAGES) {
-                                hasMoreNews = false;
-                                Log.w(TAG, "Se detiene la paginación tras varias páginas consecutivas duplicadas.");
-                            } else {
-                                rvNoticias.post(new Runnable() {
-                                    @Override
-                                    public void run() {
-                                        cargarMasNoticias();
-                                    }
-                                });
-                            }
-                        }
-                    }
-                }, false).execute(RSS_PAGE_URL + pageToLoad, NoticiaRSS.RSS_MUY_INTERESANTE);
-            }
-        });
+    private void mostrarPrimeraPagina(ArrayList<NoticiaRSS> noticias) {
+        noticiasPendientes.clear();
+        int end = Math.min(NEWS_PAGE_SIZE, noticias.size());
+        adapter.updateData(new ArrayList<>(noticias.subList(0, end)));
+        if (end < noticias.size()) {
+            noticiasPendientes.addAll(noticias.subList(end, noticias.size()));
+        }
+        hasMoreNews = !noticiasPendientes.isEmpty();
     }
 
     private void usarNoticiasOffline() {
@@ -386,16 +338,13 @@ public class MainActivity extends AppCompatActivity implements iNoticiaRSS {
         swipeRefreshLayout.setRefreshing(false);
 
         if (listaNoticias != null && !listaNoticias.isEmpty()) {
-            adapter.updateData(listaNoticias);
+            mostrarPrimeraPagina(listaNoticias);
             NewsCacheManager.saveNewsToCache(this, listaNoticias);
             layoutEmptyState.setVisibility(View.GONE);
             rvNoticias.setVisibility(View.VISIBLE);
 
             // Una actualización completa reinicia el recorrido del archivo.
-            nextArchivePage = 2;
-            hasMoreNews = false;
             isLoadingMore = false;
-            consecutiveDuplicatePages = 0;
 
             Log.d(TAG, "Noticias recibidas con éxito: " + listaNoticias.size());
         } else {
