@@ -1,4 +1,4 @@
-# Validation — built-in passive Android network observer and stalled connection attempts
+# Validation — passive Android network observer, stalled attempts, and multi-layer reachability
 
 ## Previously validated observer behavior
 
@@ -13,86 +13,97 @@ The observer provides:
 * API 24+: `registerDefaultNetworkCallback(...)`.
 * API 16–23: dynamically registered `CONNECTIVITY_ACTION` fallback.
 * Main-thread observer callback delivery.
-* No DNS/HTTP/ICMP work inside passive observation.
+* No DNS/TCP/NTP/HTTP/TLS/ICMP work inside passive observation.
 
 The API 21–23 fallback intentionally does not use `registerNetworkCallback(NetworkRequest, ...)`: that API can report multiple matching networks and is not equivalent to observing the application's default network. `registerDefaultNetworkCallback(...)` was added in API 24.
 
-## Stalled connection-attempt detection added
+## Stalled connection-attempt detection
 
-This revision additionally separates a normal in-progress connection from an attempt that has remained unresolved for too long:
+The existing implementation separates a normal in-progress connection from an attempt that remains unresolved for too long:
 
-* `isConnecting(context)` retains its existing meaning: a connection is currently being attempted.
+* `isConnecting(context)` retains its existing meaning.
 * `isConnectionAttemptStalled(context)` reports an unresolved attempt after the 30-second threshold.
 * `clearConnectionAttemptStall()` explicitly clears a latched application-attempt timeout.
-* Explicit API 29+ attempts store their monotonic start time with `SystemClock.elapsedRealtime()`.
-* The delayed timeout belongs to the exact `ConnectionAttempt` object that created it, so a callback from an older attempt cannot decrement a newer attempt.
-* Before latching an explicit timeout, the delayed callback checks `isConnected(...)`; a connection that succeeded meanwhile is therefore not misreported as stalled.
+* Explicit attempts store their monotonic start time with `SystemClock.elapsedRealtime()`.
+* Delayed timeouts belong to the exact `ConnectionAttempt` that created them.
 * A successful connection clears pending attempts and the stalled marker.
-* A new explicit attempt cycle clears the previous latched timeout.
-* API 16–28 additionally time continuous observations of `NetworkInfo.State.CONNECTING`. Since Android does not expose the original transition timestamp through this API, the 30-second clock begins with this helper's first observation of that state.
+* API 16–28 can additionally time continuous observations of `NetworkInfo.State.CONNECTING`.
 
-## Validation performed on the previous observer revision
+## Previously performed validation
 
-* Java core + Java example: `javac --release 8 -Xlint:all,-options` against Android API stubs: PASS, no Java source warnings/errors.
-* Java API 24 observer simulation: initial state delivery, `onCapabilitiesChanged` update, duplicate-state suppression, captive-portal update, idempotent `close()` and callback unregister: PASS.
-* Java API 23 fallback simulation: initial state, dynamic receiver update, receiver unregister: PASS.
-* Kotlin core + Kotlin example: `kotlinc`, JVM target 1.8, against equivalent stubs: PASS on the previously validated revision.
+The previous observer/ICMP revisions were validated with Java/Kotlin source compilation and Android API stubs, observer simulations, and physical-device checks. A real Samsung Galaxy S25 Ultra (`SM-S938B`) running Android 16/API 36 was previously used to validate installation, startup, passive observer behavior, Wi-Fi/mobile transitions, and ICMP scenarios.
 
-## Physical-device validation already performed
+Those historical checks remain relevant to the untouched observer, ICMP, lifecycle, and connection-attempt code, but they must not be presented as runtime validation of the newly added TCP/NTP/TLS/IPv6 engine.
 
-Validated successfully on 2026-08-18 using a real Samsung Galaxy S25 Ultra:
+## Multi-layer reachability upgrade — source validation performed
 
-* Model: `SM-S938B` (`samsung/pa3q`), Android 16, API 36.
-* Security patch level: `2026-07-05`.
-* A temporary signed APK containing `ConnectivityAndInternetAccess.java` and `ConnectivityUsageExample.java` installed successfully.
-* The launcher activity started successfully and no application crash was reported.
-* Passive observer result: `network available`; Android reported `Internet validated by Android`.
-* After tapping the status view, the active diagnostic succeeded with `Diagnostic reached dns://system/example.com`.
+The current upgrade adds:
 
-## Validation status of this revision
+* `TcpProbeStrategy`, `NtpProbeStrategy`, and `TlsProbeStrategy` in both Java and Kotlin.
+* Default TCP, NTP, and TLS strategies.
+* Dual-stack IPv4/IPv6 DNS, TCP, and ICMP target configuration.
+* Generic endpoint parsing for host names, IPv4, bracketed IPv6, and optional ports.
+* Three ordered stages: effective/system DNS → explicit DNS/TCP/NTP race → HTTP/TLS race.
+* Immediate short-circuit on the first successful probe in each stage.
+* Strict captive-portal mode explicitly disabling DNS/TCP/NTP/TLS fallback targets.
+* A 6-second monotonic global deadline and larger per-operation timeouts intended to avoid false negatives on high-latency 2G/EDGE and degraded 3G networks.
+* `MAX_PARALLEL_PROBES = 16`.
 
-The stalled-attempt implementation has been reviewed for state-transition and concurrency semantics in this revision, but the new 30-second transition itself has **not** been re-run on the physical-device/API matrix represented by the older validation above. The earlier physical test therefore must not be interpreted as proof of the newly added timeout behavior.
+### Java
 
-Recommended regression matrix:
+The complete upgraded Java source was compiled against Android API-compatible stubs using Java 8-compatible source/bytecode assumptions. The source-level validation passed without syntax or type errors.
 
-1. API 16 / legacy `NetworkInfo.State.CONNECTING` held for less than and greater than 30 seconds.
-2. API 23/24 transition around the observer implementation boundary.
-3. API 28 legacy `CONNECTING` behavior.
-4. API 29+ explicit `beginConnectionAttempt(...)` timeout.
-5. Explicit attempt that succeeds just before the 30-second callback.
-6. Explicit attempt manually ended before timeout.
-7. Old delayed callback firing after a newer attempt has begun.
-8. Successful connection after a stalled state, verifying automatic clearing.
-9. `clearConnectionAttemptStall()` followed by a fresh attempt.
-10. Wi-Fi/mobile handover, VPN default-network changes, captive portals, and observer start/stop cycles.
+### Kotlin
 
+The complete upgraded Kotlin source was compiled with Kotlin/JVM target 1.8 against equivalent Android API stubs. The local validation compiler predates the source's pre-existing `@ConsistentCopyVisibility` annotation, so that annotation was removed only from the temporary validation copy; it remains unchanged in the distributed source. The resulting compile passed with no source warnings/errors after the upgrade was finalized.
 
-## Combined ICMP + stalled-connection source validation
+### Static parity checks
 
-The final tree contains both independent feature sets:
+Java and Kotlin were checked for the same public/configuration surface introduced by this revision:
 
-* ICMP: `IcmpCallback`, `IcmpResult`, `Builder.setIcmpTargets(...)`, `checkIcmpReachabilityAsync(...)`, `checkIcmpReachabilityBlocking()`, default targets `1.1.1.1` / `8.8.8.8`, bounded process cleanup, and target validation.
-* Connection stall: `isConnectionAttemptStalled(context)`, `clearConnectionAttemptStall()`, 30-second explicit-attempt tracking, and API 16-28 legacy `CONNECTING` timing.
+* TCP/NTP/TLS strategy interfaces.
+* TCP/NTP/TLS default implementations.
+* TCP/NTP/TLS Builder setters.
+* TCP/NTP/TLS default-target accessors.
+* IPv6 Cloudflare defaults.
+* `Endpoint` parser replacing the DNS-specific endpoint helper.
+* 16-probe executor limit.
+* strict-mode disabling of all non-HTTP active fallback families.
+* matching stage ordering and global deadlines.
 
-The normal DNS/HTTP Internet result remains independent from ICMP, and `isConnecting()` retains its ordinary in-progress semantics rather than being redefined as "stalled".
+## Deterministic engine validation performed
 
-The Java/Kotlin ICMP fallback intentionally avoids `Throwable.addSuppressed()` so the source does not introduce an API-19-only method into a helper whose documented minimum is API 16.
+In addition to compilation, equivalent Java and Kotlin harnesses were executed with controlled probe strategies and an API-16-style connected-network stub.
 
+Java result: `ENGINE_TEST_PASS`.
 
-## Validation performed on this combined revision
+Kotlin result: `KOTLIN_ENGINE_TEST_PASS`.
 
-The exact combined source tree packaged in the result was checked after merging the ICMP and stalled-connection features:
+Both harnesses verified:
 
-* Java core + Java example: `javac --release 8` against equivalent Android API stubs: **PASS**.
-* Kotlin core + Kotlin example: Kotlin/JVM 1.8 type/syntax check against equivalent Android API stubs: **PASS**. The local compiler required a temporary compatibility declaration for the pre-existing `@ConsistentCopyVisibility` annotation; that annotation is unrelated to the stalled-connection or ICMP changes and is not included in the Gist.
-* Deterministic Java state-transition harness: **PASS** (`STALL_TEST_PASS`). It verified:
-  * API 29+ explicit attempt is ordinary `connecting` before 30 seconds;
-  * it becomes `stalled` at 30 seconds and is no longer reported as an ordinary active attempt after expiry;
-  * `clearConnectionAttemptStall()` clears the latched timeout;
-  * a new explicit attempt cycle clears a previous latch;
-  * a successful connection clears pending/stalled state;
-  * API 28 legacy `NetworkInfo.State.CONNECTING` starts its timer on first observation, remains non-stalled before 30 seconds, becomes stalled at 30 seconds, and resets when `CONNECTING` ends.
-* Connection-attempt timestamps are assigned while holding the queue lock, so enqueue order and timeout order remain consistent even with concurrent callers.
-* The ICMP fallback no longer calls `Throwable.addSuppressed()`, avoiding an API-19-only method on the documented API-16 minimum.
+* a TCP success in the transport stage returns immediately and prevents the HTTP/TLS stage from running;
+* strict captive-portal mode does not execute TCP, NTP, or TLS even when custom strategies for those families would return success;
+* TLS can win the application-stage race and is labelled `tls://cloudflare.com:443`;
+* `[2606:4700:4700::1111]:53` is parsed to the unbracketed IPv6 host plus port 53 and is reported as `tcp://[2606:4700:4700::1111]:53`;
+* the IPv6 defaults are exposed by the corresponding default-target accessors.
 
-This is a deterministic source/stub validation, not a replacement for running the final merged revision on the Android API/device matrix.
+## Runtime validation still recommended for the new engine
+
+Source compilation is not equivalent to real-network validation. Before treating this revision as production-tested, run an instrumented/device matrix covering at least:
+
+1. normal Wi-Fi;
+2. normal cellular data;
+3. GPRS/EDGE-class emulator shaping;
+4. UMTS/3G-class shaping;
+5. high-latency/jitter stress beyond the stock presets;
+6. IPv4-only, IPv6-only where available, and dual-stack networks;
+7. VPN and Private DNS configurations;
+8. captive portal / strict-204 behavior;
+9. networks blocking UDP/53 or UDP/123 while TCP/TLS still work;
+10. networks blocking ICMP while normal Internet reachability remains available.
+
+For degraded-network tests, repeat each condition many times and record `InternetResult.reachedHost`, `attemptedHosts`, and `elapsedMilliseconds`. The relevant property is not merely whether one probe succeeds, but the false-negative rate under latency, jitter, loss, and protocol-specific filtering.
+
+## Important interpretation rule
+
+The active diagnostic answers whether the app can establish broader Internet reachability through at least one configured strategy. It does **not** prove that the application's own backend is reachable. The real backend request remains the source of truth for service-specific availability.

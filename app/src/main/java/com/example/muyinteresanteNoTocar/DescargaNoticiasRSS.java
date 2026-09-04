@@ -49,7 +49,8 @@ public class DescargaNoticiasRSS extends AsyncTask<String,Integer,ArrayList<Noti
 		super.onPreExecute();
 		
 		if (contexto != null) {
-			// Registramos inicio de intento de conexión para seguimiento de estado
+            // Registramos el intento para que el helper multicapa pueda distinguir
+            // conexión en curso de una conexión atascada.
 			ConnectivityAndInternetAccess.beginConnectionAttempt(contexto);
 		}
 		

@@ -274,12 +274,12 @@ public class MainActivity extends AppCompatActivity implements iNoticiaRSS {
 
         swipeRefreshLayout.setRefreshing(true);
 
-        // Sondeo activo DNS-first / HTTP probe del Gist
+        // Diagnóstico activo multicapa del Gist: DNS, TCP, NTP, HTTP(S) y TLS.
         ConnectivityAndInternetAccess.checkInternetAsyncDefault(this, new ConnectivityAndInternetAccess.InternetCallback() {
             @Override
             public void onResult(ConnectivityAndInternetAccess.InternetResult result) {
                 if (result != null && result.isReachable()) {
-                    Log.d(TAG, "Conexión a internet verificada mediante sondeador DNS/HTTP (" + result.getElapsedMilliseconds() + "ms). Iniciando descarga RSS...");
+                    Log.d(TAG, "Conexión a internet verificada mediante diagnóstico multicapa (" + result.getReachedHost() + ", " + result.getElapsedMilliseconds() + "ms). Iniciando descarga RSS...");
                     new DescargaNoticiasRSS(MainActivity.this, MainActivity.this).execute(RSS_URL, NoticiaRSS.RSS_MUY_INTERESANTE);
                 } else {
                     swipeRefreshLayout.setRefreshing(false);
@@ -356,7 +356,7 @@ public class MainActivity extends AppCompatActivity implements iNoticiaRSS {
     private void ejecutarDiagnosticoRedCompleto() {
         final AlertDialog dialog = new AlertDialog.Builder(this)
                 .setTitle("Diagnóstico de Conectividad")
-                .setMessage("Ejecutando comprobación avanzada de red y sondeo activo DNS/HTTP...")
+                .setMessage("Ejecutando diagnóstico multicapa DNS/TCP/NTP/HTTP/TLS...")
                 .setPositiveButton("Cerrar", null)
                 .show();
 
@@ -369,7 +369,7 @@ public class MainActivity extends AppCompatActivity implements iNoticiaRSS {
         boolean isVpn = ConnectivityAndInternetAccess.vpnActive(this);
         boolean isAirplane = ConnectivityAndInternetAccess.isAirplaneModeOn(this);
 
-        // Sondeo activo DNS/HTTP
+        // Diagnóstico activo multicapa DNS/TCP/NTP/HTTP/TLS
         ConnectivityAndInternetAccess.checkInternetAsyncDefault(this, new ConnectivityAndInternetAccess.InternetCallback() {
             @Override
             public void onResult(ConnectivityAndInternetAccess.InternetResult result) {
@@ -386,7 +386,7 @@ public class MainActivity extends AppCompatActivity implements iNoticiaRSS {
                     sb.append("• Red VPN Activa: ").append(isVpn ? "SÍ" : "No").append("\n");
                     sb.append("• Modo Avión: ").append(isAirplane ? "ACTIVADO" : "Desactivado").append("\n\n");
 
-                    sb.append("🔍 PRUEBA ACTIVA DNS/HTTP (GIST):\n");
+                    sb.append("🔍 DIAGNÓSTICO ACTIVO MULTICAPA (GIST):\n");
                     sb.append("• Internet Real: ").append(reachable ? "SÍ (Internet Verificado)" : "NO (Sin Internet)").append("\n");
                     sb.append("• Servidor alcanzado: ").append(reachedHost).append("\n");
                     sb.append("• Latencia de respuesta: ").append(time).append(" ms\n");

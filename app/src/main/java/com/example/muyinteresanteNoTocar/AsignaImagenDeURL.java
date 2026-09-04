@@ -42,6 +42,7 @@ public class AsignaImagenDeURL extends AsyncTask<String,Void,Void> {
 		mapaDeBits = null;
 		f = null;
 		if (contexto != null) {
+			// El helper actualizado coordina el estado de este intento de imagen.
 			ConnectivityAndInternetAccess.beginConnectionAttempt(contexto);
 		}
 	}
