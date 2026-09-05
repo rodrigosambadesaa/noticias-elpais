@@ -1,5 +1,6 @@
 package com.example.muyinteresante;
 
+import android.annotation.SuppressLint;
 import android.content.Intent;
 import android.graphics.Bitmap;
 import android.net.Uri;
@@ -20,6 +21,9 @@ import android.webkit.WebView;
 import android.webkit.WebViewClient;
 import android.widget.ProgressBar;
 import android.widget.Toast;
+
+import com.example.muyinteresante.util.ConnectivityAndInternetAccess;
+import com.example.muyinteresante.util.RemoteConnectivityDiagnostics;
 
 public class DetalleActivity extends AppCompatActivity {
 
@@ -101,17 +105,43 @@ public class DetalleActivity extends AppCompatActivity {
             }
 
             @Override
+            @SuppressLint("NewApi")
             public void onReceivedError(WebView view, WebResourceRequest request, WebResourceError error) {
                 super.onReceivedError(view, request, error);
+                if (request != null && request.isForMainFrame()
+                        && isAmbiguousWebError(error != null ? error.getErrorCode() : 0)) {
+                    RemoteConnectivityDiagnostics.checkIfNeeded(DetalleActivity.this, result -> {
+                        String message = result != null && result.isReachable()
+                                ? "El artículo no está disponible, pero Internet responde."
+                                : "Problema de conectividad al cargar el artículo.";
+                        Toast.makeText(DetalleActivity.this, message, Toast.LENGTH_LONG).show();
+                    });
+                }
             }
         });
 
         if (articleUrl != null && !articleUrl.isEmpty()) {
-            webView.loadUrl(articleUrl);
+            cargarArticulo();
         } else {
             Toast.makeText(this, "URL no válida", Toast.LENGTH_SHORT).show();
             finish();
         }
+    }
+
+    private void cargarArticulo() {
+        if (!ConnectivityAndInternetAccess.isConnected(this)) {
+            Toast.makeText(this, "Sin conexión. No se carga el artículo remoto.", Toast.LENGTH_LONG).show();
+            return;
+        }
+        webView.loadUrl(articleUrl);
+    }
+
+    private boolean isAmbiguousWebError(int errorCode) {
+        return errorCode == WebViewClient.ERROR_HOST_LOOKUP
+                || errorCode == WebViewClient.ERROR_CONNECT
+                || errorCode == WebViewClient.ERROR_TIMEOUT
+                || errorCode == WebViewClient.ERROR_IO
+                || errorCode == WebViewClient.ERROR_FAILED_SSL_HANDSHAKE;
     }
 
     @Override
@@ -129,7 +159,7 @@ public class DetalleActivity extends AppCompatActivity {
             return true;
         } else if (id == R.id.menu_actualizar) {
             if (webView != null) {
-                webView.reload();
+                cargarArticulo();
             }
             return true;
         } else if (id == R.id.action_abrir_navegador || id == R.id.action_test_conectividad) {

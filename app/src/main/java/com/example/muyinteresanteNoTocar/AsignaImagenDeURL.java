@@ -20,6 +20,8 @@ import android.util.Log;
 import android.widget.ImageView;
 
 import com.example.muyinteresante.util.ConnectivityAndInternetAccess;
+import com.example.muyinteresante.util.RemoteConnectivityDiagnostics;
+import com.example.muyinteresante.util.RemoteRequestPolicy;
 
 public class AsignaImagenDeURL extends AsyncTask<String,Void,Void> {
 	private static final String TAG = "AsignaImagenDeURL";
@@ -63,7 +65,7 @@ public class AsignaImagenDeURL extends AsyncTask<String,Void,Void> {
 					if (mapaDeBits != null) return null;
 				}
 
-				if (contexto != null && !ConnectivityAndInternetAccess.isConnectedOrConnecting(contexto)) {
+				if (contexto != null && !ConnectivityAndInternetAccess.isConnected(contexto)) {
 					return null;
 				}
 
@@ -93,6 +95,13 @@ public class AsignaImagenDeURL extends AsyncTask<String,Void,Void> {
 			}
 		} catch (Exception e) {
 			Log.e(TAG, "Error cargando imagen de URL: " + currentUrl, e);
+			if (RemoteRequestPolicy.isAmbiguousConnectivityFailure(e)) {
+				RemoteConnectivityDiagnostics.checkIfNeeded(contexto, result -> Log.w(
+						TAG,
+						(result != null && result.isReachable())
+								? "El servicio de imágenes no está disponible, pero Internet responde."
+								: "No se pudo demostrar conectividad general mientras fallaba la imagen."));
+			}
 			mapaDeBits = null;
 		}
 		return null;

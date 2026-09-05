@@ -265,30 +265,19 @@ public class MainActivity extends AppCompatActivity implements iNoticiaRSS {
     }
 
     private void ejecutarDescargarNoticias() {
-        // Comprobación rápida inicial de estado de red antes del sondeador activo
-        if (!ConnectivityAndInternetAccess.isConnectedOrConnecting(this)) {
-            Toast.makeText(this, "Sin conexión disponible para iniciar la descarga.", Toast.LENGTH_SHORT).show();
+        // Guard barato basado en la red utilizable. No sustituye al GET real.
+        if (!ConnectivityAndInternetAccess.isConnected(this)) {
+            swipeRefreshLayout.setRefreshing(false);
+            Toast.makeText(this, "Sin conexión disponible. Mostrando caché offline.", Toast.LENGTH_SHORT).show();
             usarNoticiasOffline();
             return;
         }
 
         swipeRefreshLayout.setRefreshing(true);
 
-        // Diagnóstico activo multicapa del Gist: DNS, TCP, NTP, HTTP(S) y TLS.
-        ConnectivityAndInternetAccess.checkInternetAsyncDefault(this, new ConnectivityAndInternetAccess.InternetCallback() {
-            @Override
-            public void onResult(ConnectivityAndInternetAccess.InternetResult result) {
-                if (result != null && result.isReachable()) {
-                    Log.d(TAG, "Conexión a internet verificada mediante diagnóstico multicapa (" + result.getReachedHost() + ", " + result.getElapsedMilliseconds() + "ms). Iniciando descarga RSS...");
-                    new DescargaNoticiasRSS(MainActivity.this, MainActivity.this).execute(RSS_URL, NoticiaRSS.RSS_MUY_INTERESANTE);
-                } else {
-                    swipeRefreshLayout.setRefreshing(false);
-                    Log.w(TAG, "Chequeo activo de internet falló");
-                    Toast.makeText(MainActivity.this, "Sin acceso a internet para descargar noticias.", Toast.LENGTH_SHORT).show();
-                    usarNoticiasOffline();
-                }
-            }
-        });
+        // La petición RSS real es la prueba definitiva del servicio y conserva
+        // redirects, códigos HTTP, timeouts y excepciones de transporte.
+        new DescargaNoticiasRSS(this, this).execute(RSS_URL, NoticiaRSS.RSS_MUY_INTERESANTE);
     }
 
     /** Añade el siguiente lote local sin bloquear la interfaz ni abrir diálogos. */
@@ -323,7 +312,7 @@ public class MainActivity extends AppCompatActivity implements iNoticiaRSS {
     private void usarNoticiasOffline() {
         ArrayList<NoticiaRSS> cached = NewsCacheManager.loadNewsFromCache(this);
         if (cached != null && !cached.isEmpty()) {
-            adapter.updateData(cached);
+            mostrarPrimeraPagina(cached);
             layoutEmptyState.setVisibility(View.GONE);
             rvNoticias.setVisibility(View.VISIBLE);
             Toast.makeText(this, "Mostrando noticias guardadas en modo offline", Toast.LENGTH_SHORT).show();
@@ -351,6 +340,35 @@ public class MainActivity extends AppCompatActivity implements iNoticiaRSS {
             Toast.makeText(this, "No se pudieron obtener nuevas noticias del canal RSS", Toast.LENGTH_SHORT).show();
             usarNoticiasOffline();
         }
+    }
+
+    @Override
+    public void onError(DescargaNoticiasRSS.Failure failure) {
+        swipeRefreshLayout.setRefreshing(false);
+        String message;
+        if (failure == null) {
+            message = "No se pudo cargar el feed. Mostrando caché offline.";
+        } else {
+            switch (failure.getKind()) {
+                case NO_NETWORK:
+                    message = "Sin conectividad. Mostrando caché offline.";
+                    break;
+                case FEED_UNAVAILABLE:
+                    message = "El feed no está disponible, pero Internet sí responde. Mostrando caché.";
+                    break;
+                case NO_INTERNET:
+                    message = "Problema de conectividad a Internet. Mostrando caché offline.";
+                    break;
+                case HTTP_ERROR:
+                    message = "El feed respondió con un error. Mostrando caché offline.";
+                    break;
+                default:
+                    message = "El feed devolvió una respuesta no válida. Mostrando caché offline.";
+                    break;
+            }
+        }
+        Toast.makeText(this, message, Toast.LENGTH_LONG).show();
+        usarNoticiasOffline();
     }
 
     private void ejecutarDiagnosticoRedCompleto() {

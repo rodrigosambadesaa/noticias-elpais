@@ -5,6 +5,6 @@ RSS: https://feeds.elpais.com/mrss-s/pages/ep/site/elpais.com/portada
 
 Search, refresh, sharing, article view, offline cache, passive NetworkObserver and full connectivity diagnostics. The current multi-layer DNS/TCP/NTP/HTTPS/TLS/ICMP connectivity helper from the referenced gist is vendored under third_party/connectivity and adapted into the app package.
 
-Release 1.3.0 adds the latest multi-layer connectivity implementation, a refreshed launcher icon, and progressive infinite scrolling through the RSS results.
+Release 1.4.0 applies the connectivity helper as a cheap network guard plus request-first RSS flow, with active diagnostics only after ambiguous transport failures. It also keeps offline cache and progressive infinite scrolling.
 
 This is not an official EL PAÍS application.

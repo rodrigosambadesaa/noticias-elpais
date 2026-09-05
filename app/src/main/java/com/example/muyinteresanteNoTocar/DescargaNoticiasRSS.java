@@ -1,8 +1,14 @@
 package com.example.muyinteresanteNoTocar;
 
 import java.io.InputStream;
+import java.io.IOException;
+import java.net.ConnectException;
+import java.net.HttpURLConnection;
+import java.net.NoRouteToHostException;
+import java.net.SocketException;
+import java.net.SocketTimeoutException;
 import java.net.URL;
-import java.net.URLConnection;
+import java.net.UnknownHostException;
 import java.util.ArrayList;
 import javax.xml.parsers.DocumentBuilder;
 import javax.xml.parsers.DocumentBuilderFactory;
@@ -16,15 +22,40 @@ import android.os.AsyncTask;
 import android.util.Log;
 
 import com.example.muyinteresante.util.ConnectivityAndInternetAccess;
+import com.example.muyinteresante.util.RemoteRequestPolicy;
+
+import javax.net.ssl.SSLException;
 
 /* Parsea un canal RSS y devuelve sus items en un ArrayList */
 
 public class DescargaNoticiasRSS extends AsyncTask<String,Integer,ArrayList<NoticiaRSS>>{
 
+	public enum FailureKind {
+		NO_NETWORK,
+		HTTP_ERROR,
+		FEED_UNAVAILABLE,
+		NO_INTERNET,
+		PARSE_ERROR
+	}
+
+	public static final class Failure {
+		private final FailureKind kind;
+		private final String detail;
+
+		public Failure(FailureKind kind, String detail) {
+			this.kind = kind;
+			this.detail = detail;
+		}
+
+		public FailureKind getKind() { return kind; }
+		public String getDetail() { return detail; }
+	}
+
 	private Context contexto=null;
 	private iNoticiaRSS objetoReceptor=null;
 	private ProgressDialog pd=null;
 	private boolean mostrarProgreso=true;
+	private Failure pendingFailure;
 	
 	private static final String MENSAJE_PD="Descargando noticias...";
 	
@@ -84,12 +115,16 @@ public class DescargaNoticiasRSS extends AsyncTask<String,Integer,ArrayList<Noti
 	 
 	@Override							// Recibe URL y nombre Canal RSS.
 	protected ArrayList<NoticiaRSS> doInBackground(String... params) {
-		
+
 		InputStream entrada = null;
+		HttpURLConnection conex = null;
 		
 		try{
-			if (contexto != null && !ConnectivityAndInternetAccess.isConnectedOrConnecting(contexto)) {
-				Log.w("DescargaNoticiasRSS", "Descarga cancelada: Dispositivo sin conexión según ConnectivityAndInternetAccess.");
+			// Cheap guard only. The real RSS request below remains authoritative.
+			if (contexto != null && !RemoteRequestPolicy.canStartRequest(
+					ConnectivityAndInternetAccess.isConnected(contexto))) {
+				pendingFailure = new Failure(FailureKind.NO_NETWORK, "No hay una red utilizable.");
+				Log.w("DescargaNoticiasRSS", "Descarga omitida: no hay red utilizable.");
 				return null;
 			}
 
@@ -100,12 +135,22 @@ public class DescargaNoticiasRSS extends AsyncTask<String,Integer,ArrayList<Noti
 			
 			 // Creamos objeto URL a partir de la direccion web para conectarnos con el servidor
 			URL url = new URL(params[0]);
-			URLConnection conex = url.openConnection(); // Abrimos la conexion
+			conex = (HttpURLConnection) url.openConnection(); // Abrimos la conexion
 			conex.setConnectTimeout(10000);
 			conex.setReadTimeout(10000);
 			conex.setUseCaches(false); // Evitamos la cache de datos.
+			conex.setInstanceFollowRedirects(true);
 			conex.setRequestProperty("accept", "application/rss+xml, application/xml, text/xml, */*");
-			conex.setRequestProperty("User-Agent", "Mozilla/5.0 (Android) noticias-elpais/1.0");
+			conex.setRequestProperty("User-Agent", "Mozilla/5.0 (Android) noticias-elpais/1.3");
+
+			int statusCode = conex.getResponseCode();
+			if (RemoteRequestPolicy.classifyHttpStatus(statusCode)
+					!= RemoteRequestPolicy.Outcome.SUCCESS) {
+				pendingFailure = new Failure(
+						FailureKind.HTTP_ERROR,
+						"El feed respondió HTTP " + statusCode + ".");
+				return null;
+			}
 			 
 			 // Abrimos el fichero para su lectura/descarga
 			entrada = conex.getInputStream();	
@@ -132,7 +177,12 @@ public class DescargaNoticiasRSS extends AsyncTask<String,Integer,ArrayList<Noti
 			return noticias;
 		}
 		catch (Exception e){
-			e.printStackTrace();
+			if (RemoteRequestPolicy.isAmbiguousConnectivityFailure(e)) {
+				pendingFailure = new Failure(FailureKind.FEED_UNAVAILABLE, e.getMessage());
+			} else {
+				pendingFailure = new Failure(FailureKind.PARSE_ERROR, e.getMessage());
+			}
+			Log.w("DescargaNoticiasRSS", "Error descargando el feed", e);
 			return null;
 		}
 		finally {
@@ -140,6 +190,9 @@ public class DescargaNoticiasRSS extends AsyncTask<String,Integer,ArrayList<Noti
 				try {
 					entrada.close();
 				} catch (Exception ignored) { }
+			}
+			if (conex != null) {
+				conex.disconnect();
 			}
 		}
 
@@ -154,7 +207,31 @@ public class DescargaNoticiasRSS extends AsyncTask<String,Integer,ArrayList<Noti
 		ConnectivityAndInternetAccess.endConnectionAttempt();
 		
 		if (pd!=null) pd.dismiss();
-		if (objetoReceptor!=null ) objetoReceptor.onRecibeNoticiasRSS(result);
+		if (result != null) {
+			if (objetoReceptor!=null) objetoReceptor.onRecibeNoticiasRSS(result);
+			return;
+		}
+
+		if (pendingFailure != null && pendingFailure.getKind() == FailureKind.FEED_UNAVAILABLE
+				&& contexto != null) {
+			// The feed failed ambiguously. Only now run the general active diagnostic.
+			ConnectivityAndInternetAccess.checkInternetAsyncDefault(contexto, diagnostic -> {
+				boolean generalInternetWorks = diagnostic != null && diagnostic.isReachable();
+				FailureKind kind = RemoteRequestPolicy.classifyAmbiguousFailure(generalInternetWorks)
+						== RemoteRequestPolicy.Outcome.FEED_UNAVAILABLE
+						? FailureKind.FEED_UNAVAILABLE : FailureKind.NO_INTERNET;
+				if (objetoReceptor != null) {
+					objetoReceptor.onError(new Failure(kind, pendingFailure.getDetail()));
+				}
+			});
+			return;
+		}
+
+		if (objetoReceptor != null) {
+			objetoReceptor.onError(pendingFailure != null
+					? pendingFailure
+					: new Failure(FailureKind.PARSE_ERROR, "Respuesta RSS vacía."));
+		}
 	}
 
 
