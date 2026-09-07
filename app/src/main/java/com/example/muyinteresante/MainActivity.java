@@ -98,12 +98,11 @@ public class MainActivity extends AppCompatActivity implements iNoticiaRSS {
                     int left = insets.getSystemWindowInsetLeft();
                     int right = insets.getSystemWindowInsetRight();
 
-                    if (toolbar != null && top > 0) {
-                        toolbar.setPadding(left, top, right, 0);
-                    }
-                    if (rvNoticias != null && bottom > 0) {
-                        rvNoticias.setPadding(left, rvNoticias.getPaddingTop(), right, bottom + 12);
-                    }
+                    // El contenido se inseta como un bloque. Aplicar el inset
+                    // dentro de la Toolbar comprimía sus hijos y desplazaba
+                    // visualmente el título/menú en dispositivos con notch.
+                    // También evita acumular padding en cada callback.
+                    v.setPadding(left, top, right, bottom);
                     return insets;
                 }
             });
