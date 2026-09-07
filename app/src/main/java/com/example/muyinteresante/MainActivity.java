@@ -22,6 +22,7 @@ import android.widget.TextView;
 import android.widget.Toast;
 
 import com.example.muyinteresante.util.ConnectivityAndInternetAccess;
+import com.example.muyinteresante.util.ActivityRecreationPolicy;
 import com.example.muyinteresante.util.NewsCacheManager;
 import com.example.muyinteresanteNoTocar.DescargaNoticiasRSS;
 import com.example.muyinteresanteNoTocar.NoticiaRSS;
@@ -33,11 +34,15 @@ public class MainActivity extends AppCompatActivity implements iNoticiaRSS {
 
     private static final String TAG = "MainActivity";
     private static final String RSS_URL = "https://feeds.elpais.com/mrss-s/pages/ep/site/elpais.com/portada";
+    private static final String STATE_VISIBLE_NEWS_COUNT = "main_visible_news_count";
+    private static final String STATE_FIRST_VISIBLE_POSITION = "main_first_visible_position";
+    private static final String STATE_FIRST_VISIBLE_OFFSET = "main_first_visible_offset";
     private static final int LOAD_MORE_THRESHOLD = 4;
     private static final int NEWS_PAGE_SIZE = 20;
 
     private SwipeRefreshLayout swipeRefreshLayout;
     private RecyclerView rvNoticias;
+    private LinearLayoutManager layoutManager;
     private NoticiasAdapter adapter;
 
     private LinearLayout bannerNetworkNotice;
@@ -104,7 +109,7 @@ public class MainActivity extends AppCompatActivity implements iNoticiaRSS {
             });
         }
 
-        final LinearLayoutManager layoutManager = new LinearLayoutManager(this);
+        layoutManager = new LinearLayoutManager(this);
         rvNoticias.setLayoutManager(layoutManager);
         adapter = new NoticiasAdapter(this, new ArrayList<NoticiaRSS>(), new NoticiasAdapter.OnNoticiaClickListener() {
             @Override
@@ -161,8 +166,62 @@ public class MainActivity extends AppCompatActivity implements iNoticiaRSS {
         layoutNetworkStatusPill.setOnClickListener(listenerDiagnostico);
         btnDiagnosticarRed.setOnClickListener(listenerDiagnostico);
 
-        // Cargar noticias iniciales (intenta descargar o usa caché offline)
-        cargarNoticiasIniciales();
+        if (ActivityRecreationPolicy.shouldLoadInitialNews(savedInstanceState != null)) {
+            // Cargar noticias iniciales (intenta descargar o usa caché offline)
+            cargarNoticiasIniciales();
+        } else {
+            restaurarEstadoTrasRecreacion(savedInstanceState);
+        }
+    }
+
+    @Override
+    protected void onSaveInstanceState(Bundle outState) {
+        super.onSaveInstanceState(outState);
+        if (layoutManager == null || adapter == null) {
+            return;
+        }
+
+        int firstVisiblePosition = layoutManager.findFirstVisibleItemPosition();
+        View firstVisibleView = layoutManager.findViewByPosition(firstVisiblePosition);
+        int firstVisibleOffset = firstVisibleView != null
+                ? layoutManager.getDecoratedTop(firstVisibleView) - rvNoticias.getPaddingTop()
+                : 0;
+
+        // La lista completa ya está en caché; solo guardamos el tamaño visible
+        // y la posición para evitar inflar el Bundle con todo el contenido RSS.
+        outState.putInt(STATE_VISIBLE_NEWS_COUNT, adapter.getAllData().size());
+        outState.putInt(STATE_FIRST_VISIBLE_POSITION, Math.max(firstVisiblePosition, 0));
+        outState.putInt(STATE_FIRST_VISIBLE_OFFSET, firstVisibleOffset);
+    }
+
+    private void restaurarEstadoTrasRecreacion(Bundle savedInstanceState) {
+        ArrayList<NoticiaRSS> cached = NewsCacheManager.loadNewsFromCache(this);
+        if (cached == null || cached.isEmpty()) {
+            // No se inicia una descarga aquí: el cambio de orientación no es
+            // una operación remota nueva. El usuario puede reintentar después.
+            usarNoticiasOffline();
+            return;
+        }
+
+        int visibleCount = ActivityRecreationPolicy.visibleNewsCount(
+                savedInstanceState.getInt(STATE_VISIBLE_NEWS_COUNT, NEWS_PAGE_SIZE),
+                NEWS_PAGE_SIZE,
+                cached.size());
+        mostrarNoticiasHasta(cached, visibleCount);
+        layoutEmptyState.setVisibility(View.GONE);
+        rvNoticias.setVisibility(View.VISIBLE);
+
+        final int firstVisiblePosition = savedInstanceState.getInt(STATE_FIRST_VISIBLE_POSITION, 0);
+        final int firstVisibleOffset = savedInstanceState.getInt(STATE_FIRST_VISIBLE_OFFSET, 0);
+        rvNoticias.post(new Runnable() {
+            @Override
+            public void run() {
+                if (adapter != null && adapter.getItemCount() > 0) {
+                    int safePosition = Math.min(firstVisiblePosition, adapter.getItemCount() - 1);
+                    layoutManager.scrollToPositionWithOffset(safePosition, firstVisibleOffset);
+                }
+            }
+        });
     }
 
     @Override
@@ -300,8 +359,12 @@ public class MainActivity extends AppCompatActivity implements iNoticiaRSS {
     }
 
     private void mostrarPrimeraPagina(ArrayList<NoticiaRSS> noticias) {
+        mostrarNoticiasHasta(noticias, NEWS_PAGE_SIZE);
+    }
+
+    private void mostrarNoticiasHasta(ArrayList<NoticiaRSS> noticias, int requestedCount) {
         noticiasPendientes.clear();
-        int end = Math.min(NEWS_PAGE_SIZE, noticias.size());
+        int end = Math.min(Math.max(requestedCount, NEWS_PAGE_SIZE), noticias.size());
         adapter.updateData(new ArrayList<>(noticias.subList(0, end)));
         if (end < noticias.size()) {
             noticiasPendientes.addAll(noticias.subList(end, noticias.size()));
