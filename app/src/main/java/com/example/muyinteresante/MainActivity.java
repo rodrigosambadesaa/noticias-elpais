@@ -247,8 +247,14 @@ public class MainActivity extends AppCompatActivity implements iNoticiaRSS {
 
     private void actualizarInterfazEstadoRed(ConnectivityAndInternetAccess.NetworkState state) {
         // Comprobaciones avanzadas de red usando los métodos relevantes de ConnectivityAndInternetAccess
-        boolean isConnectedOrConnecting = ConnectivityAndInternetAccess.isConnectedOrConnecting(this);
         boolean isConnected = ConnectivityAndInternetAccess.isConnected(this);
+        // El snapshot pasivo es la autoridad para pintar la UI. No dejamos
+        // que un intento antiguo o una interfaz en transición pinte Online.
+        if (state != null) {
+            isConnected = state.isConnected();
+        }
+        boolean isConnectedOrConnecting = isConnected
+                || ConnectivityAndInternetAccess.isConnecting(this);
         boolean isWifi = ConnectivityAndInternetAccess.isConnectedWifi(this);
         boolean isMobile = ConnectivityAndInternetAccess.isConnectedMobile(this);
         boolean isVpn = ConnectivityAndInternetAccess.vpnActive(this);
@@ -261,8 +267,9 @@ public class MainActivity extends AppCompatActivity implements iNoticiaRSS {
                 ", Connected=" + isConnected + ", Wifi=" + isWifi + ", Mobile=" + isMobile +
                 ", VPN=" + isVpn + ", Airplane=" + isAirplane + ", Fast=" + isFast);
 
-        if (!isConnectedOrConnecting && !isConnected) {
+        if (!isConnected) {
             // Disconnected / Offline
+            swipeRefreshLayout.setRefreshing(false);
             viewNetworkDot.setBackgroundResource(R.color.status_offline);
             tvNetworkStatusText.setText(isAirplane ? "Modo Avión" : "Sin red");
             tvNetworkStatusText.setTextColor(getResources().getColor(R.color.status_offline));
@@ -380,7 +387,6 @@ public class MainActivity extends AppCompatActivity implements iNoticiaRSS {
             mostrarPrimeraPagina(cached);
             layoutEmptyState.setVisibility(View.GONE);
             rvNoticias.setVisibility(View.VISIBLE);
-            Toast.makeText(this, "Mostrando noticias guardadas en modo offline", Toast.LENGTH_SHORT).show();
         } else {
             rvNoticias.setVisibility(View.GONE);
             layoutEmptyState.setVisibility(View.VISIBLE);
