@@ -821,6 +821,30 @@ public final class ConnectivityAndInternetAccess {
         return connected;
     }
 
+    /**
+     * Cheap guard for a real Wi-Fi/mobile/Ethernet transport. A VPN can remain
+     * visible after its underlying transport disappeared, so VPN alone is not
+     * sufficient to start a new remote operation.
+     */
+    public static boolean hasPhysicalNetwork(Context context) {
+        requireContext(context);
+        ConnectivityManager connectivityManager = manager(context);
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
+            for (Network network : connectivityManager.getAllNetworks()) {
+                NetworkCapabilities capabilities =
+                        connectivityManager.getNetworkCapabilities(network);
+                if (isUsable(capabilities)
+                        && (capabilities.hasTransport(NetworkCapabilities.TRANSPORT_WIFI)
+                        || capabilities.hasTransport(NetworkCapabilities.TRANSPORT_CELLULAR)
+                        || capabilities.hasTransport(NetworkCapabilities.TRANSPORT_ETHERNET))) {
+                    return true;
+                }
+            }
+            return false;
+        }
+        return isConnectedLegacy(connectivityManager.getActiveNetworkInfo());
+    }
+
     /** Returns a cheap point-in-time snapshot of the application's default network. */
     public static NetworkState snapshotNetworkState(Context context) {
         requireContext(context);
@@ -1975,15 +1999,9 @@ public final class ConnectivityAndInternetAccess {
         }
 
         // Algunas VPN locales (por ejemplo, filtros DNS como AdGuard) pueden
-        // conservar INTERNET aunque ya no tengan una red subyacente. Para el
-        // guard barato de operaciones remotas, una VPN solo es utilizable si
-        // Android la ha validado explícitamente.
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M
-                && capabilities.hasTransport(NetworkCapabilities.TRANSPORT_VPN)
-                && !capabilities.hasCapability(NetworkCapabilities.NET_CAPABILITY_VALIDATED)) {
-            return false;
-        }
-
+        // conservar INTERNET aunque ya no tengan una red subyacente. La
+        // separación VPN/red física se resuelve explícitamente con
+        // hasPhysicalNetwork() en los guards de operaciones remotas.
         return Build.VERSION.SDK_INT < Build.VERSION_CODES.P
                 || capabilities.hasCapability(
                         NetworkCapabilities.NET_CAPABILITY_NOT_SUSPENDED);

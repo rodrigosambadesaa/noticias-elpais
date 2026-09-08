@@ -250,7 +250,8 @@ public class MainActivity extends AppCompatActivity implements iNoticiaRSS {
         // que un intento antiguo o una interfaz en transición pinte Online.
         ConnectivityAndInternetAccess.NetworkState effectiveState = state != null
                 ? state : ConnectivityAndInternetAccess.snapshotNetworkState(this);
-        boolean isConnected = effectiveState.isConnected();
+        boolean isConnected = effectiveState.isConnected()
+                && ConnectivityAndInternetAccess.hasPhysicalNetwork(this);
         boolean isConnectedOrConnecting = isConnected
                 || ConnectivityAndInternetAccess.isConnecting(this);
         boolean isWifi = ConnectivityAndInternetAccess.isConnectedWifi(this);
@@ -329,7 +330,8 @@ public class MainActivity extends AppCompatActivity implements iNoticiaRSS {
 
     private void ejecutarDescargarNoticias() {
         // Guard barato basado en la red utilizable. No sustituye al GET real.
-        if (!ConnectivityAndInternetAccess.isConnected(this)) {
+        if (!ConnectivityAndInternetAccess.isConnected(this)
+                || !ConnectivityAndInternetAccess.hasPhysicalNetwork(this)) {
             swipeRefreshLayout.setRefreshing(false);
             Toast.makeText(this, "Sin conexión disponible. Mostrando caché offline.", Toast.LENGTH_SHORT).show();
             usarNoticiasOffline();
@@ -456,7 +458,8 @@ public class MainActivity extends AppCompatActivity implements iNoticiaRSS {
                     // mostrar siempre un snapshot tomado al finalizar.
                     ConnectivityAndInternetAccess.NetworkState state =
                             ConnectivityAndInternetAccess.snapshotNetworkState(MainActivity.this);
-                    boolean isConnected = state.isConnected();
+                    boolean isConnected = state.isConnected()
+                            && ConnectivityAndInternetAccess.hasPhysicalNetwork(MainActivity.this);
                     boolean isConnectedOrConnecting = isConnected
                             || ConnectivityAndInternetAccess.isConnecting(MainActivity.this);
                     boolean isWifi = isConnected

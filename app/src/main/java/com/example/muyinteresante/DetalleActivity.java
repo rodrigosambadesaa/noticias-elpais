@@ -129,7 +129,8 @@ public class DetalleActivity extends AppCompatActivity {
     }
 
     private void cargarArticulo() {
-        if (!ConnectivityAndInternetAccess.isConnected(this)) {
+        if (!ConnectivityAndInternetAccess.isConnected(this)
+                || !ConnectivityAndInternetAccess.hasPhysicalNetwork(this)) {
             Toast.makeText(this, "Sin conexión. No se carga el artículo remoto.", Toast.LENGTH_LONG).show();
             return;
         }

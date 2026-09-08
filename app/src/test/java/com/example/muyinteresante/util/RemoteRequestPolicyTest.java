@@ -14,6 +14,9 @@ public class RemoteRequestPolicyTest {
     @Test
     public void offlineGuardSkipsRemoteRequestImmediately() {
         assertFalse(RemoteRequestPolicy.canStartRequest(false));
+        assertFalse(RemoteRequestPolicy.canStartRequest(true, false));
+        assertFalse(RemoteRequestPolicy.canStartRequest(false, true));
+        assertTrue(RemoteRequestPolicy.canStartRequest(true, true));
     }
 
     @Test

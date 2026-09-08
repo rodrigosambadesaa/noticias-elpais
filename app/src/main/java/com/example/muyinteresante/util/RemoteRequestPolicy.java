@@ -33,6 +33,10 @@ public final class RemoteRequestPolicy {
         return connected;
     }
 
+    public static boolean canStartRequest(boolean connected, boolean hasPhysicalNetwork) {
+        return connected && hasPhysicalNetwork;
+    }
+
     public static Outcome classifyHttpStatus(int statusCode) {
         if (statusCode >= 200 && statusCode < 300) {
             return Outcome.SUCCESS;

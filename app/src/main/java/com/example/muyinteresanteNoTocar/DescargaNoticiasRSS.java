@@ -84,7 +84,8 @@ public class DescargaNoticiasRSS extends AsyncTask<String,Integer,ArrayList<Noti
 		// de progreso. Así una operación iniciada durante una desconexión no
 		// muestra un ProgressDialog ni llega a ejecutarse en segundo plano.
 		if (contexto != null && !RemoteRequestPolicy.canStartRequest(
-				ConnectivityAndInternetAccess.isConnected(contexto))) {
+				ConnectivityAndInternetAccess.isConnected(contexto)
+						&& ConnectivityAndInternetAccess.hasPhysicalNetwork(contexto))) {
 			pendingFailure = new Failure(FailureKind.NO_NETWORK, "No hay una red utilizable.");
 			Log.w("DescargaNoticiasRSS", "Descarga no iniciada: no hay red utilizable.");
 			return;
@@ -141,7 +142,8 @@ public class DescargaNoticiasRSS extends AsyncTask<String,Integer,ArrayList<Noti
 
 			// Cheap guard only. The real RSS request below remains authoritative.
 			if (contexto != null && !RemoteRequestPolicy.canStartRequest(
-					ConnectivityAndInternetAccess.isConnected(contexto))) {
+					ConnectivityAndInternetAccess.isConnected(contexto)
+							&& ConnectivityAndInternetAccess.hasPhysicalNetwork(contexto))) {
 				pendingFailure = new Failure(FailureKind.NO_NETWORK, "No hay una red utilizable.");
 				Log.w("DescargaNoticiasRSS", "Descarga omitida: no hay red utilizable.");
 				return null;
