@@ -793,11 +793,13 @@ public final class ConnectivityAndInternetAccess {
 
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
             Network active = connectivityManager.getActiveNetwork();
-            if (active != null
-                    && isUsable(connectivityManager.getNetworkCapabilities(active))) {
+            NetworkCapabilities capabilities = active != null
+                    ? connectivityManager.getNetworkCapabilities(active) : null;
+            if (active != null && isUsable(capabilities)) {
                 clearConnectionAttempts();
                 return true;
             }
+            clearConnectionAttempts();
             return false;
         }
 
@@ -808,6 +810,7 @@ public final class ConnectivityAndInternetAccess {
                     return true;
                 }
             }
+            clearConnectionAttempts();
             return false;
         }
 
@@ -1968,6 +1971,16 @@ public final class ConnectivityAndInternetAccess {
     private static boolean isUsable(NetworkCapabilities capabilities) {
         if (capabilities == null
                 || !capabilities.hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET)) {
+            return false;
+        }
+
+        // Algunas VPN locales (por ejemplo, filtros DNS como AdGuard) pueden
+        // conservar INTERNET aunque ya no tengan una red subyacente. Para el
+        // guard barato de operaciones remotas, una VPN solo es utilizable si
+        // Android la ha validado explícitamente.
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M
+                && capabilities.hasTransport(NetworkCapabilities.TRANSPORT_VPN)
+                && !capabilities.hasCapability(NetworkCapabilities.NET_CAPABILITY_VALIDATED)) {
             return false;
         }
 

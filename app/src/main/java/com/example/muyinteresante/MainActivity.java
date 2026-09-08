@@ -246,13 +246,11 @@ public class MainActivity extends AppCompatActivity implements iNoticiaRSS {
     }
 
     private void actualizarInterfazEstadoRed(ConnectivityAndInternetAccess.NetworkState state) {
-        // Comprobaciones avanzadas de red usando los métodos relevantes de ConnectivityAndInternetAccess
-        boolean isConnected = ConnectivityAndInternetAccess.isConnected(this);
         // El snapshot pasivo es la autoridad para pintar la UI. No dejamos
         // que un intento antiguo o una interfaz en transición pinte Online.
-        if (state != null) {
-            isConnected = state.isConnected();
-        }
+        ConnectivityAndInternetAccess.NetworkState effectiveState = state != null
+                ? state : ConnectivityAndInternetAccess.snapshotNetworkState(this);
+        boolean isConnected = effectiveState.isConnected();
         boolean isConnectedOrConnecting = isConnected
                 || ConnectivityAndInternetAccess.isConnecting(this);
         boolean isWifi = ConnectivityAndInternetAccess.isConnectedWifi(this);
@@ -260,8 +258,8 @@ public class MainActivity extends AppCompatActivity implements iNoticiaRSS {
         boolean isVpn = ConnectivityAndInternetAccess.vpnActive(this);
         boolean isAirplane = ConnectivityAndInternetAccess.isAirplaneModeOn(this);
         boolean isFast = ConnectivityAndInternetAccess.isConnectedFast(this);
-        boolean isCaptive = ConnectivityAndInternetAccess.isCaptivePortalDetected(this);
-        boolean isValidated = ConnectivityAndInternetAccess.isInternetValidated(this);
+        boolean isCaptive = effectiveState.isCaptivePortalDetected();
+        boolean isValidated = effectiveState.isInternetValidated();
 
         Log.d(TAG, "Chequeo de red: ConnectedOrConnecting=" + isConnectedOrConnecting +
                 ", Connected=" + isConnected + ", Wifi=" + isWifi + ", Mobile=" + isMobile +
@@ -449,27 +447,37 @@ public class MainActivity extends AppCompatActivity implements iNoticiaRSS {
                 .setPositiveButton("Cerrar", null)
                 .show();
 
-        // Chequeos estáticos rápidos de ConnectivityAndInternetAccess
-        boolean isConnectedOrConnecting = ConnectivityAndInternetAccess.isConnectedOrConnecting(this);
-        boolean isConnected = ConnectivityAndInternetAccess.isConnected(this);
-        boolean isWifi = ConnectivityAndInternetAccess.isConnectedWifi(this);
-        boolean isMobile = ConnectivityAndInternetAccess.isConnectedMobile(this);
-        boolean isFast = ConnectivityAndInternetAccess.isConnectedFast(this);
-        boolean isVpn = ConnectivityAndInternetAccess.vpnActive(this);
-        boolean isAirplane = ConnectivityAndInternetAccess.isAirplaneModeOn(this);
-
         // Diagnóstico activo multicapa DNS/TCP/NTP/HTTP/TLS
         ConnectivityAndInternetAccess.checkInternetAsyncDefault(this, new ConnectivityAndInternetAccess.InternetCallback() {
             @Override
             public void onResult(ConnectivityAndInternetAccess.InternetResult result) {
                 if (dialog != null && dialog.isShowing()) {
+                    // La red puede cambiar mientras se ejecuta el diagnóstico;
+                    // mostrar siempre un snapshot tomado al finalizar.
+                    ConnectivityAndInternetAccess.NetworkState state =
+                            ConnectivityAndInternetAccess.snapshotNetworkState(MainActivity.this);
+                    boolean isConnected = state.isConnected();
+                    boolean isConnectedOrConnecting = isConnected
+                            || ConnectivityAndInternetAccess.isConnecting(MainActivity.this);
+                    boolean isWifi = isConnected
+                            && ConnectivityAndInternetAccess.isConnectedWifi(MainActivity.this);
+                    boolean isMobile = isConnected
+                            && ConnectivityAndInternetAccess.isConnectedMobile(MainActivity.this);
+                    boolean isFast = isConnected
+                            && ConnectivityAndInternetAccess.isConnectedFast(MainActivity.this);
+                    boolean isVpn = isConnected
+                            && ConnectivityAndInternetAccess.vpnActive(MainActivity.this);
+                    boolean isAirplane = ConnectivityAndInternetAccess.isAirplaneModeOn(MainActivity.this);
                     boolean reachable = result != null && result.isReachable();
                     String reachedHost = result != null ? result.getReachedHost() : "Ninguno";
                     long time = result != null ? result.getElapsedMilliseconds() : 0;
 
                     StringBuilder sb = new StringBuilder();
                     sb.append("📡 ESTADO DE INTERFAZ DE RED:\n");
-                    sb.append("• Estado general: ").append(isConnected ? "Conectado" : (isConnectedOrConnecting ? "Conectando..." : "Desconectado")).append("\n");
+                    String interfaceStatus = !isConnected
+                            ? "Desconectado"
+                            : (reachable ? "Conectado" : "Red activa sin Internet demostrado");
+                    sb.append("• Estado general: ").append(interfaceStatus).append("\n");
                     sb.append("• Tipo de red: ").append(isWifi ? "Wi-Fi" : (isMobile ? "Móvil / Celular" : "Otra / Ninguna")).append("\n");
                     sb.append("• Velocidad estimada: ").append(isFast ? "Rápida (High Speed)" : "Lenta / Desconocida").append("\n");
                     sb.append("• Red VPN Activa: ").append(isVpn ? "SÍ" : "No").append("\n");
