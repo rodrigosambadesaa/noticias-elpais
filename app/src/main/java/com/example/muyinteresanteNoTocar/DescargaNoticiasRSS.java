@@ -55,6 +55,7 @@ public class DescargaNoticiasRSS extends AsyncTask<String,Integer,ArrayList<Noti
 	private iNoticiaRSS objetoReceptor=null;
 	private ProgressDialog pd=null;
 	private boolean mostrarProgreso=true;
+	private boolean connectionAttemptBegun=false;
 	private Failure pendingFailure;
 	
 	private static final String MENSAJE_PD="Descargando noticias...";
@@ -79,10 +80,21 @@ public class DescargaNoticiasRSS extends AsyncTask<String,Integer,ArrayList<Noti
 	protected void onPreExecute() {
 		super.onPreExecute();
 		
+		// Este guard ocurre en el hilo de UI, antes de crear cualquier indicador
+		// de progreso. Así una operación iniciada durante una desconexión no
+		// muestra un ProgressDialog ni llega a ejecutarse en segundo plano.
+		if (contexto != null && !RemoteRequestPolicy.canStartRequest(
+				ConnectivityAndInternetAccess.isConnected(contexto))) {
+			pendingFailure = new Failure(FailureKind.NO_NETWORK, "No hay una red utilizable.");
+			Log.w("DescargaNoticiasRSS", "Descarga no iniciada: no hay red utilizable.");
+			return;
+		}
+
 		if (contexto != null) {
             // Registramos el intento para que el helper multicapa pueda distinguir
             // conexión en curso de una conexión atascada.
 			ConnectivityAndInternetAccess.beginConnectionAttempt(contexto);
+			connectionAttemptBegun = true;
 		}
 		
 		if (mostrarProgreso && contexto != null) {
@@ -107,7 +119,10 @@ public class DescargaNoticiasRSS extends AsyncTask<String,Integer,ArrayList<Noti
 		super.onCancelled();
 		
 		// Finalizamos intento de conexión
-		ConnectivityAndInternetAccess.endConnectionAttempt();
+		if (connectionAttemptBegun) {
+			ConnectivityAndInternetAccess.endConnectionAttempt();
+			connectionAttemptBegun = false;
+		}
 		
 		if (pd!=null) pd.dismiss();
 	}
@@ -120,6 +135,10 @@ public class DescargaNoticiasRSS extends AsyncTask<String,Integer,ArrayList<Noti
 		HttpURLConnection conex = null;
 		
 		try{
+			if (pendingFailure != null) {
+				return null;
+			}
+
 			// Cheap guard only. The real RSS request below remains authoritative.
 			if (contexto != null && !RemoteRequestPolicy.canStartRequest(
 					ConnectivityAndInternetAccess.isConnected(contexto))) {
@@ -204,7 +223,10 @@ public class DescargaNoticiasRSS extends AsyncTask<String,Integer,ArrayList<Noti
 		super.onPostExecute(result);
 		
 		// Finalizamos intento de conexión
-		ConnectivityAndInternetAccess.endConnectionAttempt();
+		if (connectionAttemptBegun) {
+			ConnectivityAndInternetAccess.endConnectionAttempt();
+			connectionAttemptBegun = false;
+		}
 		
 		if (pd!=null) pd.dismiss();
 		if (result != null) {

@@ -335,7 +335,10 @@ public class MainActivity extends AppCompatActivity implements iNoticiaRSS {
 
         // La petición RSS real es la prueba definitiva del servicio y conserva
         // redirects, códigos HTTP, timeouts y excepciones de transporte.
-        new DescargaNoticiasRSS(this, this).execute(RSS_URL, NoticiaRSS.RSS_MUY_INTERESANTE);
+        // El spinner integrado de SwipeRefreshLayout es suficiente; evitar el
+        // ProgressDialog modal mejora el estado offline y no bloquea la UI.
+        new DescargaNoticiasRSS(this, this, false).execute(
+                RSS_URL, NoticiaRSS.RSS_MUY_INTERESANTE);
     }
 
     /** Añade el siguiente lote local sin bloquear la interfaz ni abrir diálogos. */
