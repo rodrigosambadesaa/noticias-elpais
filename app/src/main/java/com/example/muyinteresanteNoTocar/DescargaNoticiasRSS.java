@@ -157,8 +157,11 @@ public class DescargaNoticiasRSS extends AsyncTask<String,Integer,ArrayList<Noti
 			 // Creamos objeto URL a partir de la direccion web para conectarnos con el servidor
 			URL url = new URL(params[0]);
 			conex = (HttpURLConnection) url.openConnection(); // Abrimos la conexion
-			conex.setConnectTimeout(10000);
-			conex.setReadTimeout(10000);
+			// La descarga del feed no tiene un límite artificial: en redes móviles
+			// muy lentas debe poder completar mientras siga existiendo conectividad.
+			// HttpURLConnection interpreta 0 como espera indefinida.
+			conex.setConnectTimeout(0);
+			conex.setReadTimeout(0);
 			conex.setUseCaches(false); // Evitamos la cache de datos.
 			conex.setInstanceFollowRedirects(true);
 			conex.setRequestProperty("accept", "application/rss+xml, application/xml, text/xml, */*");
