@@ -1,5 +1,10 @@
 # ConnectivityAndInternetAccess
 
+The Java implementation is integrated once in the app source set at
+`app/src/main/java/com/example/muyinteresante/util/ConnectivityAndInternetAccess.java`.
+It is adapted only by package name and Android lint annotations from the
+canonical gist revision documented in the repository history.
+
 Modernized fork of `str4d/22cac7a3f70bc227cdca`, itself derived from Emil Davtyan's original `emil2k/5130324` `Connectivity.java`.
 
 This fork provides two equivalent implementations:

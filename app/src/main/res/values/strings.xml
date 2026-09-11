@@ -3,5 +3,11 @@
 
     <string name="app_name">Noticias EL PAÍS</string>
     <string name="actualizar">Actualizar</string>
+    <string name="network_no_connection">Sin conexión de red.</string>
+    <string name="network_no_internet">No se puede acceder a Internet.</string>
+    <string name="network_backend_unavailable">Hay conexión a Internet, pero el servicio no está disponible.</string>
+    <string name="network_captive_portal">La red requiere iniciar sesión para acceder a Internet.</string>
+    <string name="network_connection_restored">Conexión recuperada.</string>
+    <string name="network_service_restored">Servicio disponible de nuevo.</string>
 
 </resources>

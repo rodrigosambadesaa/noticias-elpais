@@ -283,7 +283,8 @@ public final class ConnectivityAndInternetAccess {
                             Network network,
                             NetworkCapabilities capabilities) {
                         currentDefaultNetwork = network;
-                        publish(networkStateFromCapabilities(capabilities));
+                        publish(networkStateFromCapabilities(
+                                connectivityManager, capabilities));
                     }
 
                     @Override
@@ -665,7 +666,9 @@ public final class ConnectivityAndInternetAccess {
         if (network == null) {
             return false;
         }
-        return isUsable(manager(context).getNetworkCapabilities(network));
+        ConnectivityManager connectivityManager = manager(context);
+        return isEffectivelyUsable(connectivityManager,
+                connectivityManager.getNetworkCapabilities(network));
     }
 
     public static boolean isConnecting(Context context) {
@@ -795,22 +798,21 @@ public final class ConnectivityAndInternetAccess {
             Network active = connectivityManager.getActiveNetwork();
             NetworkCapabilities capabilities = active != null
                     ? connectivityManager.getNetworkCapabilities(active) : null;
-            if (active != null && isUsable(capabilities)) {
+            if (active != null && isEffectivelyUsable(connectivityManager, capabilities)) {
                 clearConnectionAttempts();
                 return true;
             }
-            clearConnectionAttempts();
             return false;
         }
 
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
             for (Network network : connectivityManager.getAllNetworks()) {
-                if (isUsable(connectivityManager.getNetworkCapabilities(network))) {
+                if (isEffectivelyUsable(connectivityManager,
+                        connectivityManager.getNetworkCapabilities(network))) {
                     clearConnectionAttempts();
                     return true;
                 }
             }
-            clearConnectionAttempts();
             return false;
         }
 
@@ -821,28 +823,15 @@ public final class ConnectivityAndInternetAccess {
         return connected;
     }
 
-    /**
-     * Cheap guard for a real Wi-Fi/mobile/Ethernet transport. A VPN can remain
-     * visible after its underlying transport disappeared, so VPN alone is not
-     * sufficient to start a new remote operation.
-     */
-    public static boolean hasPhysicalNetwork(Context context) {
+    /** Returns whether a usable non-VPN network exists beneath the active path. */
+    public static boolean hasUnderlyingNetwork(Context context) {
         requireContext(context);
-        ConnectivityManager connectivityManager = manager(context);
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
-            for (Network network : connectivityManager.getAllNetworks()) {
-                NetworkCapabilities capabilities =
-                        connectivityManager.getNetworkCapabilities(network);
-                if (isUsable(capabilities)
-                        && (capabilities.hasTransport(NetworkCapabilities.TRANSPORT_WIFI)
-                        || capabilities.hasTransport(NetworkCapabilities.TRANSPORT_CELLULAR)
-                        || capabilities.hasTransport(NetworkCapabilities.TRANSPORT_ETHERNET))) {
-                    return true;
-                }
-            }
-            return false;
-        }
-        return isConnectedLegacy(connectivityManager.getActiveNetworkInfo());
+        return hasUsableNonVpnNetwork(manager(context));
+    }
+
+    /** Compatibility alias for {@link #hasUnderlyingNetwork(Context)}. */
+    public static boolean hasPhysicalNetwork(Context context) {
+        return hasUnderlyingNetwork(context);
     }
 
     /** Returns a cheap point-in-time snapshot of the application's default network. */
@@ -856,6 +845,7 @@ public final class ConnectivityAndInternetAccess {
                 return disconnectedNetworkState();
             }
             return networkStateFromCapabilities(
+                    connectivityManager,
                     connectivityManager.getNetworkCapabilities(active));
         }
 
@@ -907,8 +897,7 @@ public final class ConnectivityAndInternetAccess {
 
         NetworkCapabilities capabilities =
                 manager(context).getNetworkCapabilities(network);
-        return capabilities != null
-                && capabilities.hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET)
+        return isEffectivelyUsable(manager(context), capabilities)
                 && capabilities.hasCapability(NetworkCapabilities.NET_CAPABILITY_VALIDATED);
     }
 
@@ -1962,8 +1951,9 @@ public final class ConnectivityAndInternetAccess {
     }
 
     private static NetworkState networkStateFromCapabilities(
+            ConnectivityManager connectivityManager,
             NetworkCapabilities capabilities) {
-        boolean connected = isUsable(capabilities);
+        boolean connected = isEffectivelyUsable(connectivityManager, capabilities);
         boolean validated = connected
                 && Build.VERSION.SDK_INT >= Build.VERSION_CODES.M
                 && capabilities.hasCapability(
@@ -1998,13 +1988,40 @@ public final class ConnectivityAndInternetAccess {
             return false;
         }
 
-        // Algunas VPN locales (por ejemplo, filtros DNS como AdGuard) pueden
-        // conservar INTERNET aunque ya no tengan una red subyacente. La
-        // separación VPN/red física se resuelve explícitamente con
-        // hasPhysicalNetwork() en los guards de operaciones remotas.
         return Build.VERSION.SDK_INT < Build.VERSION_CODES.P
                 || capabilities.hasCapability(
                         NetworkCapabilities.NET_CAPABILITY_NOT_SUSPENDED);
+    }
+
+    private static boolean isEffectivelyUsable(
+            ConnectivityManager connectivityManager,
+            NetworkCapabilities capabilities) {
+        if (!isUsable(capabilities)) {
+            return false;
+        }
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.LOLLIPOP
+                || !capabilities.hasTransport(NetworkCapabilities.TRANSPORT_VPN)) {
+            return true;
+        }
+        return hasUsableNonVpnNetwork(connectivityManager);
+    }
+
+    private static boolean hasUsableNonVpnNetwork(
+            ConnectivityManager connectivityManager) {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.LOLLIPOP) {
+            return isConnectedLegacy(connectivityManager.getActiveNetworkInfo());
+        }
+        for (Network network : connectivityManager.getAllNetworks()) {
+            NetworkCapabilities capabilities =
+                    connectivityManager.getNetworkCapabilities(network);
+            if (isUsable(capabilities)
+                    && (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M
+                    ? capabilities.hasCapability(NetworkCapabilities.NET_CAPABILITY_NOT_VPN)
+                    : !capabilities.hasTransport(NetworkCapabilities.TRANSPORT_VPN))) {
+                return true;
+            }
+        }
+        return false;
     }
 
     private static boolean hasTransport(Context context, int transport) {
@@ -2113,14 +2130,16 @@ public final class ConnectivityAndInternetAccess {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
             Network active = connectivityManager.getActiveNetwork();
             if (active != null
-                    && isUsable(connectivityManager.getNetworkCapabilities(active))) {
+                    && isEffectivelyUsable(connectivityManager,
+                            connectivityManager.getNetworkCapabilities(active))) {
                 return active;
             }
             return null;
         }
 
         for (Network network : connectivityManager.getAllNetworks()) {
-            if (isUsable(connectivityManager.getNetworkCapabilities(network))) {
+            if (isEffectivelyUsable(connectivityManager,
+                    connectivityManager.getNetworkCapabilities(network))) {
                 return network;
             }
         }
