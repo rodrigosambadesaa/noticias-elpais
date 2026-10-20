@@ -10,4 +10,76 @@
     <string name="network_connection_restored">Conexión recuperada.</string>
     <string name="network_service_restored">Servicio disponible de nuevo.</string>
 
+    <string name="downloading_news">Descargando noticias…</string>
+    <string name="downloading_news_count">Descargando noticias… %1$d</string>
+    <string name="network_text_01" formatted="false">Chequeo de red: ConnectedOrConnecting=</string>
+    <string name="network_text_02" formatted="false">, Connected=</string>
+    <string name="network_text_03" formatted="false">, Wifi=</string>
+    <string name="network_text_04" formatted="false">, Mobile=</string>
+    <string name="network_text_05" formatted="false">, VPN=</string>
+    <string name="network_text_06" formatted="false">, Airplane=</string>
+    <string name="network_text_07" formatted="false">, Fast=</string>
+    <string name="network_text_08" formatted="false">Modo Avión</string>
+    <string name="network_text_09" formatted="false">Sin red</string>
+    <string name="network_text_10" formatted="false">Modo Avión activado. Mostrando noticias guardadas en caché.</string>
+    <string name="network_text_11" formatted="false">Dispositivo sin conexión a internet. Mostrando noticias guardadas en caché.</string>
+    <string name="network_text_12" formatted="false">Portal Cautivo</string>
+    <string name="network_text_13" formatted="false">Se requiere inicio de sesión en red (Portal Cautivo detectado).</string>
+    <string name="network_text_14" formatted="false">Conectando...</string>
+    <string name="network_text_15" formatted="false">Conectado a la interfaz de red pero sin acceso verificado a internet.</string>
+    <string name="network_text_16" formatted="false">Online</string>
+    <string name="network_text_17" formatted="false">Online (VPN)</string>
+    <string name="network_text_18" formatted="false">Online (Wi-Fi)</string>
+    <string name="network_text_19" formatted="false">Online (4G/5G)</string>
+    <string name="network_text_20" formatted="false">Online (Móvil Lento)</string>
+    <string name="ui_text_21" formatted="false">Sin conexión disponible. Mostrando caché offline.</string>
+    <string name="ui_text_22" formatted="false">No se pudieron obtener nuevas noticias del canal RSS</string>
+    <string name="ui_text_23" formatted="false">No se pudo cargar el feed. Mostrando caché offline.</string>
+    <string name="ui_text_24" formatted="false">Sin conectividad. Mostrando caché offline.</string>
+    <string name="ui_text_25" formatted="false">El feed no está disponible, pero Internet sí responde. Mostrando caché.</string>
+    <string name="ui_text_26" formatted="false">Problema de conectividad a Internet. Mostrando caché offline.</string>
+    <string name="ui_text_27" formatted="false">El feed respondió con un error. Mostrando caché offline.</string>
+    <string name="ui_text_28" formatted="false">El feed devolvió una respuesta no válida. Mostrando caché offline.</string>
+    <string name="network_text_29" formatted="false">Diagnóstico de Conectividad</string>
+    <string name="network_text_30" formatted="false">Ejecutando diagnóstico multicapa DNS/TCP/NTP/HTTP/TLS...</string>
+    <string name="network_text_31" formatted="false">Cerrar</string>
+    <string name="network_text_32" formatted="false">Ninguno</string>
+    <string name="network_text_33" formatted="false">📡 ESTADO DE INTERFAZ DE RED:\n</string>
+    <string name="network_text_34" formatted="false">Desconectado</string>
+    <string name="network_text_35" formatted="false">Conectado</string>
+    <string name="network_text_36" formatted="false">Red activa sin Internet demostrado</string>
+    <string name="network_text_37" formatted="false">• Estado general: </string>
+    <string name="network_text_38" formatted="false">• Tipo de red: </string>
+    <string name="network_text_39" formatted="false">Wi-Fi</string>
+    <string name="network_text_40" formatted="false">Móvil / Celular</string>
+    <string name="network_text_41" formatted="false">Otra / Ninguna</string>
+    <string name="network_text_42" formatted="false">• Velocidad estimada: </string>
+    <string name="network_text_43" formatted="false">Rápida (High Speed)</string>
+    <string name="network_text_44" formatted="false">Lenta / Desconocida</string>
+    <string name="network_text_45" formatted="false">• Red VPN Activa: </string>
+    <string name="network_text_46" formatted="false">SÍ</string>
+    <string name="network_text_47" formatted="false">No</string>
+    <string name="network_text_48" formatted="false">• Modo Avión: </string>
+    <string name="network_text_49" formatted="false">ACTIVADO</string>
+    <string name="network_text_50" formatted="false">Desactivado</string>
+    <string name="network_text_51" formatted="false">🔍 DIAGNÓSTICO ACTIVO MULTICAPA (GIST):\n</string>
+    <string name="network_text_52" formatted="false">• Internet Real: </string>
+    <string name="network_text_53" formatted="false">SÍ (Internet Verificado)</string>
+    <string name="network_text_54" formatted="false">NO (Sin Internet)</string>
+    <string name="network_text_55" formatted="false">• Servidor alcanzado: </string>
+    <string name="network_text_56" formatted="false">• Latencia de respuesta: </string>
+    <string name="network_text_57" formatted="false"> ms\n</string>
+    <string name="network_text_58" formatted="false">\n📋 REGISTRO DE RED (NetworkState):\n</string>
+    <string name="ui_text_59" formatted="false">Buscar noticia...</string>
+    <string name="ui_text_60" formatted="false">Muy Interesante</string>
+    <string name="ui_text_61" formatted="false">URL no válida</string>
+    <string name="ui_text_62" formatted="false">Sin conexión. No se carga el artículo remoto.</string>
+    <string name="ui_text_63" formatted="false">Abrir noticia en...</string>
+    <string name="ui_text_64" formatted="false">No se pudo abrir el navegador</string>
+    <string name="article_text_65" formatted="false">No se pudo abrir la noticia en el navegador</string>
+    <string name="article_text_66" formatted="false">Compartir noticia vía</string>
+    <string name="menu_search" formatted="false">Buscar noticia</string>
+    <string name="menu_open_browser" formatted="false">Abrir en navegador</string>
+    <string name="menu_network_diagnostics" formatted="false">Diagnóstico de red avanzado</string>
+    <string name="detail_label" formatted="false">Detalle de noticia</string>
 </resources>

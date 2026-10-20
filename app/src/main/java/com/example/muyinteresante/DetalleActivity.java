@@ -47,7 +47,7 @@ public class DetalleActivity extends AppCompatActivity {
         setSupportActionBar(toolbar);
         if (getSupportActionBar() != null) {
             getSupportActionBar().setDisplayHomeAsUpEnabled(true);
-            getSupportActionBar().setTitle(articleTitle != null ? articleTitle : "Muy Interesante");
+            getSupportActionBar().setTitle(articleTitle != null ? articleTitle : getString(R.string.ui_text_60));
         }
 
         progressBar = findViewById(R.id.progressBarWeb);
@@ -123,7 +123,7 @@ public class DetalleActivity extends AppCompatActivity {
         if (articleUrl != null && !articleUrl.isEmpty()) {
             cargarArticulo();
         } else {
-            Toast.makeText(this, "URL no válida", Toast.LENGTH_SHORT).show();
+            Toast.makeText(this, getString(R.string.ui_text_61), Toast.LENGTH_SHORT).show();
             finish();
         }
     }
@@ -131,7 +131,7 @@ public class DetalleActivity extends AppCompatActivity {
     private void cargarArticulo() {
         if (!ConnectivityAndInternetAccess.isConnected(this)
                 || !ConnectivityAndInternetAccess.hasPhysicalNetwork(this)) {
-            Toast.makeText(this, "Sin conexión. No se carga el artículo remoto.", Toast.LENGTH_LONG).show();
+            Toast.makeText(this, getString(R.string.ui_text_62), Toast.LENGTH_LONG).show();
             return;
         }
         webView.loadUrl(articleUrl);
@@ -167,10 +167,10 @@ public class DetalleActivity extends AppCompatActivity {
             if (articleUrl != null && !articleUrl.isEmpty()) {
                 try {
                     Intent browserIntent = new Intent(Intent.ACTION_VIEW, Uri.parse(articleUrl));
-                    Intent chooser = Intent.createChooser(browserIntent, "Abrir noticia en...");
+                    Intent chooser = Intent.createChooser(browserIntent, getString(R.string.ui_text_63));
                     startActivity(chooser);
                 } catch (Exception e) {
-                    Toast.makeText(this, "No se pudo abrir el navegador", Toast.LENGTH_SHORT).show();
+                    Toast.makeText(this, getString(R.string.ui_text_64), Toast.LENGTH_SHORT).show();
                 }
             }
             return true;
