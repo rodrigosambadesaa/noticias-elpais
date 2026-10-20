@@ -227,7 +227,7 @@ public class DescargaNoticiasRSS extends AsyncTask<String,Integer,ArrayList<Noti
 		if (pendingFailure != null && pendingFailure.getKind() == FailureKind.FEED_UNAVAILABLE
 				&& contexto != null) {
 			// The feed failed ambiguously. Only now run the general active diagnostic.
-			ConnectivityAndInternetAccess.checkInternetAsyncDefault(contexto, diagnostic -> {
+			ConnectivityAndInternetAccess.checkHttpOnlyAsyncDefault(contexto, diagnostic -> {
 				boolean generalInternetWorks = diagnostic != null && diagnostic.isReachable();
 				FailureKind kind = RemoteRequestPolicy.classifyAmbiguousFailure(generalInternetWorks)
 						== RemoteRequestPolicy.Outcome.FEED_UNAVAILABLE
